@@ -14,7 +14,7 @@ import supervisor
 
 # create an object for the dotstar pixel on the Trinket M0
 # It's an array because it's a sequence of one pixel
-pixels = adafruit_dotstar.DotStar(board.APA102_SCK, board.APA102_MOSI, 1, brightness=.15)
+pixels = adafruit_dotstar.DotStar(board.APA102_SCK, board.APA102_MOSI, 1, brightness=.95)
 
 # this function takes a standard "hex code" for a color and returns
 # a tuple of (red, green, blue)
@@ -26,6 +26,23 @@ def hex2rgb(hexcode):
     rgb = (red, green, blue)
     # print(rgb)
     return rgb
+
+#This array contains digitized data for a heartbeat wave scaled to between 0 and 1.0
+#It is used to create the "beat" mode
+beatArray = [0.090909091,0.097902098,0.104895105,0.118881119,0.132867133,0.146853147,
+    0.153846154,0.160839161,0.181818182,0.181818182,0.195804196,0.181818182,0.188811189,
+    0.188811189,0.181818182,0.174825175,0.174825175,0.160839161,0.167832168,0.160839161,0.167832168,
+    0.167832168,0.167832168,0.160839161,0.146853147,0.146853147,0.153846154,0.160839161,0.146853147,
+    0.153846154,0.13986014,0.153846154,0.132867133,0.146853147,0.13986014,0.13986014,0.146853147,
+    0.146853147,0.146853147,0.146853147,0.160839161,0.146853147,0.160839161,0.167832168,0.181818182,
+    0.202797203,0.216783217,0.20979021,0.202797203,0.195804196,0.195804196,0.216783217,0.160839161,
+    0.13986014,0.13986014,0.13986014,0.118881119,0.118881119,0.111888112,0.132867133,0.111888112,
+    0.132867133,0.104895105,0.083916084,0.020979021,0,0.230769231,0.636363636,1,0.846153846,
+    0.27972028,0.048951049,0.055944056,0.083916084,0.090909091,0.083916084,0.083916084,
+    0.076923077,0.076923077,0.076923077,0.090909091,0.06993007,0.083916084,0.076923077,
+    0.076923077,0.06993007,0.076923077,0.083916084,0.083916084,0.083916084,0.076923077,
+    0.090909091,0.076923077,0.083916084,0.06993007,0.076923077,0.062937063,0.06993007,
+    0.062937063,0.055944056,0.055944056,0.048951049,0.041958042,0.034965035,0.041958042,0.027972028]
 
 # When we start up, make the LED black
 black = (0, 0, 0)
@@ -48,7 +65,7 @@ curColor = black
 # beat* - pulse to a recorded heartbeat intensity
 # wheel - change hue around the colorwheel (curColor is ignored)
 
-mode='solid'
+mode='wheel'
 
 # standard function to rotate around the colorwheel
 def wheel(pos):
@@ -63,42 +80,17 @@ def wheel(pos):
         pos -= 170
         return (0, int(pos * 3), int(255 - pos * 3))
 
-
-# Map the color to the current value of 'pos' 
-# according to the current mode
-def runMode():
-    global curColor
-    global black
-    global targetColor
-    global pos
-    if (mode == 'blink'):
-        if(curColor == black):
-            curColor = targetColor
-        else:
-            curColor = black
-        sleep(.4)
-    #        print('.', end='')
-        pixels.fill(curColor)
-        pixels.show()   
-    elif (mode == 'wheel'):
-        pos = (pos + 1) % 255
-        pixels.fill(wheel(pos))
-        pixels.show()
-    elif (mode == 'solid'):
-        pixels.fill(targetColor)
-        pixels.show()
-
 #We start by turning off pixels
 pixels.fill(black)
 pixels.show()
 
 #Main Loop
 while True:
-    #Check to see if there's input available (requires CP 3.3+)
+    #Check to see if there's input available (requires CP 4.0 Alpha)
     if (supervisor.runtime.serial_bytes_available):
-        #read in text (mode, #RRGGBB, standard color)
+        #read in text (@mode, #RRGGBB, %brightness, standard color)
         #input() will block until a newline is sent
-        inText = input()
+        inText = input().strip()
         #Sometimes Windows sends an extra (or missing) newline - ignore them
         if(inText == ""):
             continue
@@ -128,6 +120,11 @@ while True:
             mode= inText[1:]
         #Here we'll change the target color just like above
         #but to any #RedGreenBlue color 
+        elif (inText.startswith("%")):
+            pctText = inText[1:]
+            pct = float(pctText)/100.0
+            pixels.brightness=pct
+        #If we get a hex code set it and go to solid
         elif (inText.startswith("#")):
             hexcode = inText[1:]
             targetColor = hex2rgb(hexcode)
@@ -140,7 +137,35 @@ while True:
             if (mode == "wheel"):
                 mode="solid"
     else:
-        #If no text availble, update the color according to the mode
-        runMode()
-        continue
-
+            #If no text availble, update the color according to the mode
+        if (mode == 'blink'):
+            if(curColor == black):
+                curColor = targetColor
+            else:
+                curColor = black
+            sleep(.4)
+        #        print('.', end='')
+            pixels.fill(curColor)
+            pixels.show()   
+        elif (mode == 'wheel'):
+            sleep(.05)
+            pos = (pos + 1) % 255
+            pixels.fill(wheel(pos))
+            pixels.show()
+        elif (mode == 'solid'):
+            pixels.fill(targetColor)
+            pixels.show()
+        elif (mode == 'beat'):
+            pos = (pos + 5 ) % 106
+            scaleAvg = (beatArray[(pos-2)%106] + beatArray[(pos-1)%106] + beatArray[pos] + beatArray[(pos+1)%106] + beatArray[(pos+2)%106])/5
+            beatColor = tuple(int(scaleAvg*x) for x in targetColor)
+            pixels.fill(beatColor)
+            sleep(.025)
+            pixels.show()
+        elif (mode == 'ramp'):
+            pos = ((pos + 5 ) % 255)
+            scaleFactor = (2*abs(pos-127))/255
+            beatColor = tuple(int(scaleFactor * x) for x in targetColor)
+            pixels.fill(beatColor)
+            sleep(.075)
+            pixels.show()
