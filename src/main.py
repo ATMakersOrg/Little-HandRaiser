@@ -91,6 +91,9 @@ while True:
         #read in text (@mode, #RRGGBB, %brightness, standard color)
         #input() will block until a newline is sent
         inText = input().strip()
+#	print("Got: '",end='')
+#	print(repr(inText),end='')
+#        print("'")
         #Sometimes Windows sends an extra (or missing) newline - ignore them
         if(inText == ""):
             continue
